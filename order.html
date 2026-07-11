@@ -26,6 +26,7 @@
   .item:first-of-type{border-top:none}
   .item .info{flex:1;min-width:0}
   .item .nm{font-weight:700;font-size:16px}
+  .item .ds{color:var(--muted);font-size:13px;line-height:1.45;margin-top:3px}
   .item .pr{color:var(--fg);font-size:15px;margin-top:4px}
   .thumb{width:84px;height:84px;border-radius:12px;background:#ecfdf3 center/cover no-repeat;flex:none;position:relative;display:flex;align-items:center;justify-content:center;color:#9fd9b4;font-size:26px}
   .add{position:absolute;right:-6px;bottom:-6px;width:32px;height:32px;border-radius:50%;background:var(--ok);color:#fff;border:2px solid #fff;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -143,7 +144,7 @@ function renderMenu(){
     items.forEach(m=>{
       const img = m.img ? `style="background-image:url('${esc(m.img)}');color:transparent"` : '';
       html+=`<div class="item" onclick="tapItem('${m.id}', this)">
-        <div class="info"><div class="nm">${esc(m.name)}</div><div class="pr">${money(m.price)}</div></div>
+        <div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${money(m.price)}</div></div>
         <div class="thumb" ${img}>${m.img?'':'●'}<div class="add">+</div></div>
       </div>`;
     });
@@ -151,7 +152,7 @@ function renderMenu(){
   });
   const other=MENU.filter(m=>!STATIONS.includes(m.station||''));
   if(FILTER==='__ALL__' && other.length){
-    html+=`<div class="section"><h2>More</h2>`+other.map(m=>`<div class="item" onclick="tapItem('${m.id}', this)"><div class="info"><div class="nm">${esc(m.name)}</div><div class="pr">${money(m.price)}</div></div><div class="thumb">●<div class="add">+</div></div></div>`).join('')+`</div>`;
+    html+=`<div class="section"><h2>More</h2>`+other.map(m=>`<div class="item" onclick="tapItem('${m.id}', this)"><div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${money(m.price)}</div></div><div class="thumb">●<div class="add">+</div></div></div>`).join('')+`</div>`;
   }
   $('#menu').innerHTML = html || '<div class="load">No items available.</div>';
 }
