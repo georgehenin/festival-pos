@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Menu images (bulk editor)</title>
+<style>
+  :root{--bg:#fff;--fg:#111;--muted:#667085;--border:#e2e6ee;--ok:#16a34a;--accent:#2563eb}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:820px;margin:0 auto;padding:16px}
+  h1{font-size:22px}
+  .muted{color:var(--muted);font-size:14px}
+  input,button{font:inherit}
+  input{border:1px solid var(--border);border-radius:10px;padding:11px}
+  .auth input{margin-right:8px}
+  .btn{border:none;border-radius:11px;padding:12px 18px;font-weight:800;cursor:pointer;background:var(--accent);color:#fff}
+  .btn.ok{background:var(--ok)}
+  .row{border-top:1px solid var(--border);padding:12px 0;display:flex;gap:12px;align-items:center}
+  .thumb{width:60px;height:60px;border-radius:10px;object-fit:cover;background:#f1f5f9;border:1px solid var(--border);flex:none}
+  .grow{flex:1;min-width:0}
+  .nm{font-weight:800}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:6px}
+  .row input{width:100%}
+  .bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:12px 0;display:flex;gap:12px;align-items:center}
+  .hidden{display:none}
+</style></head>
+<body>
+<div class="wrap">
+  <h1>Menu images</h1>
+  <p class="muted">Sign in as an admin. Paste an image URL for each item (a link ending in .jpg/.png, or any public image link). A preview shows as you type. Then Save all. Images appear on the customer ordering page.</p>
+
+  <div id="auth" class="auth">
+    <input id="email" type="email" placeholder="Admin email" style="min-width:220px">
+    <input id="pass" type="password" placeholder="Password" style="min-width:180px">
+    <button class="btn" id="loginBtn">Sign in</button>
+    <div id="authMsg" class="muted" style="margin-top:8px"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="muted" id="who"></div>
+    <div id="list"></div>
+    <div class="bar">
+      <button class="btn ok" id="saveBtn">Save all images</button>
+      <span class="muted" id="status"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyBu-Ux4lvGn6-pnBngmJzL0BAtW1uIfOKM",
+  authDomain:"churchfestivalpos.firebaseapp.com",
+  projectId:"churchfestivalpos",
+  storageBucket:"churchfestivalpos.firebasestorage.app",
+  messagingSenderId:"447909610900",
+  appId:"1:447909610900:web:a54a828bacfa02e7883b81"
+});
+const db=firebase.firestore(), auth=firebase.auth();
+const $=s=>document.querySelector(s);
+
+let MENU=[];
+auth.onAuthStateChanged(u=>{
+  if(u){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#who').textContent='Signed in as '+u.email; load(); }
+  else { $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden'); }
+});
+$('#loginBtn').onclick=async()=>{
+  $('#authMsg').textContent='Signing in…';
+  try{ await auth.signInWithEmailAndPassword($('#email').value.trim(), $('#pass').value); $('#authMsg').textContent=''; }
+  catch(e){ $('#authMsg').textContent=e.message; }
+};
+
+function esc(s){return String(s==null?'':s).replace(/"/g,'&quot;');}
+async function load(){
+  const snap=await db.collection('menu').orderBy('name').get();
+  MENU=snap.docs.map(d=>({id:d.id,...d.data()}));
+  $('#list').innerHTML=MENU.map(m=>`
+    <div class="row">
+      <img class="thumb" id="t_${m.id}" src="${esc(m.img||'')}" onerror="this.removeAttribute('src')">
+      <div class="grow">
+        <div class="nm">${esc(m.name)}</div>
+        <div class="meta">$${Number(m.price||0).toFixed(2)} · ${esc(m.station||'—')}</div>
+        <input data-id="${m.id}" value="${esc(m.img||'')}" placeholder="https://…/photo.jpg" oninput="document.getElementById('t_${m.id}').src=this.value">
+      </div>
+    </div>`).join('');
+}
+$('#saveBtn').onclick=async()=>{
+  const inputs=[...document.querySelectorAll('#list input[data-id]')];
+  $('#status').textContent='Saving…';
+  try{
+    let batch=db.batch(), n=0, done=0;
+    for(const inp of inputs){
+      batch.set(db.collection('menu').doc(inp.dataset.id), {img: inp.value.trim() || null}, {merge:true});
+      n++; done++;
+      if(n>=400){ await batch.commit(); batch=db.batch(); n=0; }
+    }
+    if(n>0) await batch.commit();
+    $('#status').textContent='Saved '+done+' items. ✓';
+  }catch(e){ $('#status').textContent='Error: '+e.message; }
+};
+</script>
+</body></html>
