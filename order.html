@@ -109,20 +109,30 @@ firebase.initializeApp({
 const db=firebase.firestore();
 const $=s=>document.querySelector(s);
 
+// Which church this QR/link is for. Every church has its own order page:
+//   order.html?org=THE_ORG_ID
+const ORG=new URLSearchParams(location.search).get('org');
+// Base reference to this church's data. All reads/writes go through it.
+const base = ORG ? db.collection('orgs').doc(ORG) : null;
+
 let STATIONS=[], MENU=[], MODS=new Map(), CART=[], FILTER='__ALL__';
 let modCtx=null;
 
+if(!base){
+  document.addEventListener('DOMContentLoaded',()=>{ const m=$('#menu'); if(m) m.innerHTML='<div class="load">This ordering link is missing its church code. Please scan the QR code again.</div>'; });
+} else {
 Promise.all([
-  db.collection('settings').doc('config').get(),
-  db.collection('mod_groups').get(),
-  db.collection('menu').orderBy('name').get()
+  base.collection('settings').doc('config').get(),
+  base.collection('mod_groups').get(),
+  base.collection('menu').orderBy('name').get()
 ]).then(([cfg,mg,mn])=>{
   const c=cfg.data()||{}; STATIONS=Array.isArray(c.stations)?c.stations.filter(Boolean):[];
   mg.forEach(d=>MODS.set(d.id,{id:d.id,...d.data()}));
-  MENU=[]; mn.forEach(d=>{const m={id:d.id,...d.data()}; if(m.active!==false) MENU.push(m);});
+  MENU=[]; mn.forEach(d=>{const m={id:d.id,...d.data()}; if(m.active!==false && m.online!==false && m.soldOut!==true) MENU.push(m);});
   if(!STATIONS.length){ STATIONS=[...new Set(MENU.map(m=>m.station).filter(Boolean))]; }
   renderCats(); renderMenu();
 }).catch(e=>{ $('#menu').innerHTML='<div class="load">Couldn’t load the menu. Please refresh.</div>'; });
+}
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function money(n){return '$'+(Number(n||0)).toFixed(2);}
@@ -247,7 +257,7 @@ function renderCart(){
 function chg(i,d){ CART[i].qty+=d; if(CART[i].qty<=0) CART.splice(i,1); renderBar(); if(!CART.length){closeCart();} else renderCart(); }
 
 async function nextNumber(){
-  const ref=db.collection('meta').doc('order_seq');
+  const ref=base.collection('meta').doc('order_seq');
   return db.runTransaction(async tx=>{
     const s=await tx.get(ref);
     let v=(s.exists && typeof s.data().value==='number')?s.data().value:0;
@@ -262,7 +272,7 @@ async function placeOrder(){
   try{
     const number=await nextNumber();
     const ts=Date.now();
-    await db.collection('orders').add({
+    await base.collection('orders').add({
       number, source:'online', paid:false, status:'unpaid', createdAt:ts, updatedAt:ts, customer:cust,
       total:cartTotal(),
       items:CART.map(l=>({menuId:l.menuId,name:l.name,qty:l.qty,price:l.each,station:l.station||null,
