@@ -136,6 +136,15 @@ Promise.all([
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function money(n){return '$'+(Number(n||0)).toFixed(2);}
+// Items priced through a required (single-choice) modifier show "from $X"
+// instead of "$0.00".
+function priceLabel(m){
+  const base=Number(m.price||0);
+  const gids=(Array.isArray(m.modGroupIds)?m.modGroupIds:[]).filter(Boolean);
+  let addMin=0;
+  gids.forEach(g=>{const grp=MODS.get(g); if(grp&&grp.selectType==='single'&&Array.isArray(grp.options)&&grp.options.length){addMin+=Math.min(...grp.options.map(o=>Number(o.price)||0));}});
+  return addMin>0?('from '+money(base+addMin)):money(base);
+}
 
 function renderCats(){
   $('#cats').innerHTML =
@@ -154,7 +163,7 @@ function renderMenu(){
     items.forEach(m=>{
       const img = m.img ? `style="background-image:url('${esc(m.img)}');color:transparent"` : '';
       html+=`<div class="item" onclick="tapItem('${m.id}', this)">
-        <div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${money(m.price)}</div></div>
+        <div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${priceLabel(m)}</div></div>
         <div class="thumb" ${img}>${m.img?'':'●'}<div class="add">+</div></div>
       </div>`;
     });
@@ -162,7 +171,7 @@ function renderMenu(){
   });
   const other=MENU.filter(m=>!STATIONS.includes(m.station||''));
   if(FILTER==='__ALL__' && other.length){
-    html+=`<div class="section"><h2>More</h2>`+other.map(m=>`<div class="item" onclick="tapItem('${m.id}', this)"><div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${money(m.price)}</div></div><div class="thumb">●<div class="add">+</div></div></div>`).join('')+`</div>`;
+    html+=`<div class="section"><h2>More</h2>`+other.map(m=>`<div class="item" onclick="tapItem('${m.id}', this)"><div class="info"><div class="nm">${esc(m.name)}</div>${m.desc?`<div class="ds">${esc(m.desc)}</div>`:''}<div class="pr">${priceLabel(m)}</div></div><div class="thumb">●<div class="add">+</div></div></div>`).join('')+`</div>`;
   }
   $('#menu').innerHTML = html || '<div class="load">No items available.</div>';
 }
