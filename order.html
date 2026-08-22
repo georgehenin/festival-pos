@@ -82,15 +82,16 @@
   <label class="muted" for="cust">Name for the order</label>
   <input id="cust" type="text" placeholder="Your name" autocomplete="name"/>
   <div id="cartMsg" class="muted" style="margin-top:8px;color:var(--danger)"></div>
-  <button class="btn ok" style="margin-top:12px" onclick="placeOrder()" id="placeBtn">Place order</button>
+  <button class="btn ok" style="margin-top:12px" onclick="placeOrder()" id="placeBtn">Place order · pay cash at window</button>
+  <button class="btn ok" style="margin-top:10px;display:none;background:#111" onclick="payByCard()" id="cardBtn">Pay by card / Apple Pay</button>
   <button class="btn gray" onclick="closeCart()">Keep browsing</button>
 </div></div>
 
 <div id="doneMask" class="mask" style="display:none;align-items:center"><div class="sheet" style="border-radius:20px;max-width:440px;margin:16px">
   <div class="center muted">Your order number</div>
   <div class="big" id="doneNum">—</div>
-  <div class="center" style="font-weight:700;font-size:18px">Show this number at the window and pay with cash.</div>
-  <div class="center muted" style="margin-top:8px">Your food starts once payment is received.</div>
+  <div class="center" style="font-weight:700;font-size:18px" id="doneMsg1">Show this number at the window and pay with cash.</div>
+  <div class="center muted" style="margin-top:8px" id="doneMsg2">Your food starts once payment is received.</div>
   <button class="btn ok" style="margin-top:18px" onclick="location.reload()">Start a new order</button>
 </div></div>
 
@@ -116,6 +117,10 @@ const base = ORG ? db.collection('orgs').doc(ORG) : null;
 
 let STATIONS=[], MENU=[], MODS=new Map(), CART=[], FILTER='__ALL__';
 let modCtx=null;
+let PAY_CASH=true, PAY_CARD=false;
+// After deploying the Stripe function, paste its URL here (from `firebase deploy`
+// output, e.g. https://createcheckoutsession-xxxxx-uc.a.run.app).
+const FUNCTIONS_BASE='https://us-central1-churchfestivalpos.cloudfunctions.net/createCheckoutSession';
 
 if(!base){
   document.addEventListener('DOMContentLoaded',()=>{ const m=$('#menu'); if(m) m.innerHTML='<div class="load">This ordering link is missing its church code. Please scan the QR code again.</div>'; });
@@ -130,7 +135,8 @@ Promise.all([
   const online = c.onlineOrdering !== false;   // default on
   const payCash = c.payCash !== false;         // default on
   const payCard = c.payCard === true;          // default off
-  const pills=[]; if(payCash) pills.push('Pay cash at the window'); if(payCard) pills.push('Card accepted');
+  PAY_CASH=payCash; PAY_CARD=payCard; applyPayModes();
+  const pills=[]; if(payCash) pills.push('Pay cash at the window'); if(payCard) pills.push('Card / Apple Pay');
   if(!pills.length) pills.push('Order ahead');
   const pp=$('#payPills'); if(pp) pp.innerHTML=pills.map((t,i)=>`<span class="pill${i?' gray':''}">${esc(t)}</span>`).join('');
   if(!online){ $('#cats').innerHTML=''; $('#menu').innerHTML='<div class="load">Online ordering is currently closed. Please order at the window.</div>'; return; }
@@ -300,8 +306,53 @@ async function placeOrder(){
     $('#doneMask').style.display='flex';
   }catch(e){
     $('#cartMsg').textContent='Something went wrong. Please try again.';
-    btn.disabled=false; btn.textContent='Place order';
+    btn.disabled=false; btn.textContent='Place order · pay cash at window';
   }
 }
+
+function applyPayModes(){
+  const pb=$('#placeBtn'), cb=$('#cardBtn');
+  if(pb) pb.style.display=PAY_CASH?'':'none';
+  if(cb) cb.style.display=PAY_CARD?'':'none';
+}
+
+// Pay online by card / Apple Pay — creates a Stripe Checkout Session via the
+// Cloud Function and redirects to Stripe's hosted payment page.
+async function payByCard(){
+  const cust=($('#cust').value||'').trim();
+  if(!CART.length){ return; }
+  if(!cust){ $('#cartMsg').textContent='Please add your name.'; return; }
+  if(!FUNCTIONS_BASE || FUNCTIONS_BASE.indexOf('PASTE')===0){ $('#cartMsg').textContent='Card payment isn’t set up yet.'; return; }
+  const btn=$('#cardBtn'); btn.disabled=true; btn.textContent='Redirecting to payment…'; $('#cartMsg').textContent='';
+  try{
+    const r=await fetch(FUNCTIONS_BASE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      orgId:ORG, customer:cust,
+      items:CART.map(l=>({menuId:l.menuId,name:l.name,qty:l.qty,each:l.each,station:l.station||null,
+        mods:(l.mods||[]).map(g=>({groupName:g.groupName,options:(g.options||[]).map(o=>({name:o.name,price:+o.price||0}))}))}))
+    })});
+    const d=await r.json();
+    if(d && d.url){ location.href=d.url; return; }
+    throw new Error((d&&d.error)||'Could not start payment');
+  }catch(e){
+    $('#cartMsg').textContent='Payment could not start. Please try again.';
+    btn.disabled=false; btn.textContent='Pay by card / Apple Pay';
+  }
+}
+
+// Coming back from Stripe Checkout.
+(function(){
+  const p=new URLSearchParams(location.search);
+  if(p.get('paid')==='1'){
+    document.addEventListener('DOMContentLoaded',()=>{
+      const n=p.get('n')||'';
+      const dn=$('#doneNum'); if(dn) dn.textContent=n;
+      const m1=$('#doneMsg1'); if(m1) m1.textContent='Payment received — thank you!';
+      const m2=$('#doneMsg2'); if(m2) m2.textContent='Show this number to pick up your order.';
+      const dm=$('#doneMask'); if(dm) dm.style.display='flex';
+    });
+  } else if(p.get('canceled')==='1'){
+    document.addEventListener('DOMContentLoaded',()=>{ const cm=$('#cartMsg'); });
+  }
+})();
 </script>
 </body></html>
