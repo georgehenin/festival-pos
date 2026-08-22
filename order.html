@@ -58,9 +58,8 @@
 <div class="wrap">
   <div class="hero">
     <h1 id="heroTitle">Festival POS</h1>
-    <div class="tag">
-      <span class="pill">Pay cash at the window</span>
-      <span class="pill gray">Order ahead</span>
+    <div class="tag" id="payPills">
+      <span class="pill">Order ahead</span>
     </div>
   </div>
   <div id="cats" class="cats"></div>
@@ -126,7 +125,16 @@ Promise.all([
   base.collection('mod_groups').get(),
   base.collection('menu').orderBy('name').get()
 ]).then(([cfg,mg,mn])=>{
-  const c=cfg.data()||{}; STATIONS=Array.isArray(c.stations)?c.stations.filter(Boolean):[];
+  const c=cfg.data()||{};
+  // Admin toggles (Admin -> Online Ordering Link).
+  const online = c.onlineOrdering !== false;   // default on
+  const payCash = c.payCash !== false;         // default on
+  const payCard = c.payCard === true;          // default off
+  const pills=[]; if(payCash) pills.push('Pay cash at the window'); if(payCard) pills.push('Card accepted');
+  if(!pills.length) pills.push('Order ahead');
+  const pp=$('#payPills'); if(pp) pp.innerHTML=pills.map((t,i)=>`<span class="pill${i?' gray':''}">${esc(t)}</span>`).join('');
+  if(!online){ $('#cats').innerHTML=''; $('#menu').innerHTML='<div class="load">Online ordering is currently closed. Please order at the window.</div>'; return; }
+  STATIONS=Array.isArray(c.stations)?c.stations.filter(Boolean):[];
   mg.forEach(d=>MODS.set(d.id,{id:d.id,...d.data()}));
   MENU=[]; mn.forEach(d=>{const m={id:d.id,...d.data()}; if(m.active!==false && m.online!==false && m.soldOut!==true) MENU.push(m);});
   if(!STATIONS.length){ STATIONS=[...new Set(MENU.map(m=>m.station).filter(Boolean))]; }
