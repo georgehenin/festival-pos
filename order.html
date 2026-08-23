@@ -92,7 +92,7 @@
   <div class="big" id="doneNum">—</div>
   <div class="center" style="font-weight:700;font-size:18px" id="doneMsg1">Show this number at the window and pay with cash.</div>
   <div class="center muted" style="margin-top:8px" id="doneMsg2">Your food starts once payment is received.</div>
-  <button class="btn ok" style="margin-top:18px" onclick="location.reload()">Start a new order</button>
+  <button class="btn ok" style="margin-top:18px" onclick="newOrder()">Start a new order</button>
 </div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
@@ -339,6 +339,9 @@ async function payByCard(){
   }
 }
 
+// Fresh order: go to the clean ordering URL (drops paid/canceled params).
+function newOrder(){ location.href = location.pathname + '?org=' + encodeURIComponent(ORG||''); }
+
 // Coming back from Stripe Checkout.
 (function(){
   const p=new URLSearchParams(location.search);
@@ -349,9 +352,9 @@ async function payByCard(){
       const m1=$('#doneMsg1'); if(m1) m1.textContent='Payment received — thank you!';
       const m2=$('#doneMsg2'); if(m2) m2.textContent='Show this number to pick up your order.';
       const dm=$('#doneMask'); if(dm) dm.style.display='flex';
+      // Strip the params so a refresh doesn't re-show this.
+      try{ history.replaceState({},'',location.pathname+'?org='+encodeURIComponent(ORG||'')); }catch(e){}
     });
-  } else if(p.get('canceled')==='1'){
-    document.addEventListener('DOMContentLoaded',()=>{ const cm=$('#cartMsg'); });
   }
 })();
 </script>
