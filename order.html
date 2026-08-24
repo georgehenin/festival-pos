@@ -92,6 +92,7 @@
   <div class="big" id="doneNum">—</div>
   <div class="center" style="font-weight:700;font-size:18px" id="doneMsg1">Show this number at the window and pay with cash.</div>
   <div class="center muted" style="margin-top:8px" id="doneMsg2">Your food starts once payment is received.</div>
+  <div id="doneSections" style="margin-top:10px"></div>
   <button class="btn ok" style="margin-top:18px" onclick="newOrder()">Start a new order</button>
 </div></div>
 
@@ -349,8 +350,18 @@ function newOrder(){ location.href = location.pathname + '?org=' + encodeURIComp
     document.addEventListener('DOMContentLoaded',()=>{
       const n=p.get('n')||'';
       const dn=$('#doneNum'); if(dn) dn.textContent=n;
-      const m1=$('#doneMsg1'); if(m1) m1.textContent='Payment received — thank you!';
-      const m2=$('#doneMsg2'); if(m2) m2.textContent='Show this number to pick up your order.';
+      let sum=null; try{ sum=JSON.parse(decodeURIComponent(p.get('sum')||'')); }catch(e){}
+      const range=(a,b)=> (a===b? ('about '+b+' minutes') : ('about '+a+'–'+b+' minutes'));
+      if(sum && Array.isArray(sum.hl)){
+        const m1=$('#doneMsg1'); if(m1) m1.textContent='Your order will be ready in '+range(sum.hl[0],sum.hl[1])+'.';
+        const secs=Array.isArray(sum.secs)?sum.secs:[];
+        const m2=$('#doneMsg2'); if(m2) m2.textContent = secs.length>1 ? 'Pick up each part here:' : (secs.length? 'Pick up here:':'Thank you!');
+        const ds=$('#doneSections');
+        if(ds) ds.innerHTML=secs.map(s=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--border);text-align:left"><span style="font-weight:700;color:var(--fg)">${esc(s.n)}</span><span style="color:var(--muted);white-space:nowrap">~${s.a}–${s.b} min</span></div>`).join('');
+      } else {
+        const m1=$('#doneMsg1'); if(m1) m1.textContent='Payment received — thank you!';
+        const m2=$('#doneMsg2'); if(m2) m2.textContent='Show this number to pick up your order.';
+      }
       const dm=$('#doneMask'); if(dm) dm.style.display='flex';
       // Strip the params so a refresh doesn't re-show this.
       try{ history.replaceState({},'',location.pathname+'?org='+encodeURIComponent(ORG||'')); }catch(e){}
