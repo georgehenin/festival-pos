@@ -79,6 +79,7 @@
   <h3>Your order</h3>
   <div id="cartBody"></div>
   <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+  <div id="cardFeeNote" class="muted" style="display:none;margin-top:2px;text-align:right;font-size:13px"></div>
   <label class="muted" for="cust">Name for the order</label>
   <input id="cust" type="text" placeholder="Your name" autocomplete="name"/>
   <div id="cartMsg" class="muted" style="margin-top:8px;color:var(--danger)"></div>
@@ -119,6 +120,7 @@ const base = ORG ? db.collection('orgs').doc(ORG) : null;
 let STATIONS=[], MENU=[], MODS=new Map(), CART=[], FILTER='__ALL__';
 let modCtx=null;
 let PAY_CASH=true, PAY_CARD=false;
+let CARD_FEE_PCT=0, CARD_FEE_FLAT=0;
 // After deploying the Stripe function, paste its URL here (from `firebase deploy`
 // output, e.g. https://createcheckoutsession-xxxxx-uc.a.run.app).
 const FUNCTIONS_BASE='https://us-central1-churchfestivalpos.cloudfunctions.net/createCheckoutSession';
@@ -136,6 +138,8 @@ Promise.all([
   const online = c.onlineOrdering !== false;   // default on
   const payCash = c.payCash !== false;         // default on
   const payCard = c.payCard === true;          // default off
+  CARD_FEE_PCT=Math.max(0,parseFloat(c.cardFeePercent)||0);
+  CARD_FEE_FLAT=Math.max(0,parseFloat(c.cardFeeFlat)||0);
   PAY_CASH=payCash; PAY_CARD=payCard; applyPayModes();
   const pills=[]; if(payCash) pills.push('Pay cash at the window'); if(payCard) pills.push('Card / Apple Pay');
   if(!pills.length) pills.push('Order ahead');
@@ -239,6 +243,8 @@ function addLine(m,mods){
   renderBar();
 }
 function cartTotal(){ return CART.reduce((a,l)=>a+l.each*l.qty,0); }
+// Card / Apple Pay surcharge (card only) — mirrors the server-side calc.
+function cardFee(){ const f=cartTotal()*(CARD_FEE_PCT/100)+CARD_FEE_FLAT; return Math.round(f*100)/100; }
 function cartCount(){ return CART.reduce((a,l)=>a+l.qty,0); }
 function renderBar(){
   const n=cartCount();
@@ -277,6 +283,20 @@ function renderCart(){
       <div class="qty"><button class="qbtn" onclick="chg(${i},-1)">−</button><b>${l.qty}</b><button class="qbtn" onclick="chg(${i},1)">+</button></div></div>`;
   }).join('') || '<div class="muted">Your order is empty.</div>';
   $('#cartTotal').textContent=money(cartTotal());
+  updateCardFeeNote();
+}
+// Show the card fee under the total and on the card button, so the customer sees
+// it before paying. Cash pays no fee; the card total = items + fee.
+function updateCardFeeNote(){
+  const note=$('#cardFeeNote'), cb=$('#cardBtn');
+  const fee=cardFee();
+  if(PAY_CARD && fee>0){
+    if(note){ note.style.display=''; note.textContent=`Card / Apple Pay adds ${money(fee)} — card total ${money(cartTotal()+fee)}`; }
+    if(cb) cb.textContent=`Pay by card / Apple Pay · ${money(cartTotal()+fee)}`;
+  } else {
+    if(note) note.style.display='none';
+    if(cb) cb.textContent='Pay by card / Apple Pay';
+  }
 }
 function chg(i,d){ CART[i].qty+=d; if(CART[i].qty<=0) CART.splice(i,1); renderBar(); if(!CART.length){closeCart();} else renderCart(); }
 
@@ -315,6 +335,7 @@ function applyPayModes(){
   const pb=$('#placeBtn'), cb=$('#cardBtn');
   if(pb) pb.style.display=PAY_CASH?'':'none';
   if(cb) cb.style.display=PAY_CARD?'':'none';
+  updateCardFeeNote();
 }
 
 // Pay online by card / Apple Pay — creates a Stripe Checkout Session via the
@@ -336,7 +357,7 @@ async function payByCard(){
     throw new Error((d&&d.error)||'Could not start payment');
   }catch(e){
     $('#cartMsg').textContent='Payment could not start. Please try again.';
-    btn.disabled=false; btn.textContent='Pay by card / Apple Pay';
+    btn.disabled=false; updateCardFeeNote();
   }
 }
 
