@@ -47,6 +47,9 @@
   .btn{width:100%;border:none;border-radius:13px;padding:16px;font-size:17px;font-weight:800;cursor:pointer}
   .btn.ok{background:var(--ok);color:#fff}
   .btn.gray{background:#eef2f7;color:#111;margin-top:8px}
+  .btn[disabled]{opacity:.85}
+  .spin{display:inline-block;width:17px;height:17px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:9px}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .muted{color:var(--muted);font-size:14px}
   .total{display:flex;justify-content:space-between;font-weight:800;font-size:18px;margin:12px 0}
   .big{font-size:64px;font-weight:900;text-align:center;margin:6px 0}
@@ -345,7 +348,7 @@ async function payByCard(){
   if(!CART.length){ return; }
   if(!cust){ $('#cartMsg').textContent='Please add your name.'; return; }
   if(!FUNCTIONS_BASE || FUNCTIONS_BASE.indexOf('PASTE')===0){ $('#cartMsg').textContent='Card payment isn’t set up yet.'; return; }
-  const btn=$('#cardBtn'); btn.disabled=true; btn.textContent='Redirecting to payment…'; $('#cartMsg').textContent='';
+  const btn=$('#cardBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span>Starting secure checkout…'; $('#cartMsg').textContent='';
   try{
     const r=await fetch(FUNCTIONS_BASE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       orgId:ORG, customer:cust,
